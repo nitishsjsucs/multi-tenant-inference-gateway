@@ -1,0 +1,42 @@
+# Envoy AI Gateway route (aigateway.envoyproxy.io/v1alpha1; v1beta1 has the
+# same schema and is the storage version from Envoy AI Gateway v1.2).
+# Envoy AI Gateway extracts the request's "model" into the x-ai-eg-model
+# header; every name the pool serves - the base model and each LoRA
+# adapter - routes to the InferencePool, whose endpoint picker chooses the
+# replica. When the multi-tenant gateway sits in front, it has already
+# mapped tenant aliases to these upstream names.
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIGatewayRoute
+metadata:
+  name: llama-3-1-8b
+  namespace: inference
+spec:
+  parentRefs:
+    - name: inference-gateway
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  rules:
+    - matches:
+        - headers:
+            - {type: Exact, name: x-ai-eg-model, value: meta-llama/Llama-3.1-8B-Instruct}
+        - headers:
+            - {type: Exact, name: x-ai-eg-model, value: support-lora-v2}
+        - headers:
+            - {type: Exact, name: x-ai-eg-model, value: sql-lora-v1}
+        - headers:
+            - {type: Exact, name: x-ai-eg-model, value: legal-lora-v1}
+      backendRefs:
+        - group: inference.networking.k8s.io
+          kind: InferencePool
+          name: llama-3-1-8b
+      timeouts:
+        request: 600s
+  # Token usage recorded per request in dynamic metadata (io.envoy.ai_gateway),
+  # usable by Envoy Gateway rate limits if budgets are enforced at Envoy.
+  llmRequestCosts:
+    - metadataKey: llm_input_token
+      type: InputToken
+    - metadataKey: llm_output_token
+      type: OutputToken
+    - metadataKey: llm_total_token
+      type: TotalToken

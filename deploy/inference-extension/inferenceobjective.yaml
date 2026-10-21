@@ -1,0 +1,30 @@
+# InferenceObjective (inference.networking.x-k8s.io/v1alpha2, the GIE v1.0
+# API that replaced InferenceModel). Objectives carry request priority for
+# the reference picker's flow control; requests select one with the
+# x-gateway-inference-objective header. cmd/epp does not implement flow
+# control and ignores these objects - they are here so the pool can be
+# switched to the reference picker without other changes. Newer releases
+# moved this API to the llm-d project (llm-d.ai group).
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferenceObjective
+metadata:
+  name: interactive
+  namespace: inference
+spec:
+  priority: 10
+  poolRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: llama-3-1-8b
+---
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferenceObjective
+metadata:
+  name: batch
+  namespace: inference
+spec:
+  priority: -10
+  poolRef:
+    group: inference.networking.k8s.io
+    kind: InferencePool
+    name: llama-3-1-8b

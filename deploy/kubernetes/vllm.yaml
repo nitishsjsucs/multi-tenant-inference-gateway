@@ -1,0 +1,96 @@
+# vLLM serving Llama-3.1-8B-Instruct with multi-LoRA enabled. Adapters are
+# read from a PVC; replace it with however you distribute adapter weights.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-llama-3-1-8b
+  namespace: inference
+  labels:
+    app: vllm-llama-3-1-8b
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: vllm-llama-3-1-8b
+  template:
+    metadata:
+      labels:
+        app: vllm-llama-3-1-8b
+    spec:
+      terminationGracePeriodSeconds: 130
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.11.0 # pin to the version you validate
+          args:
+            - --model=meta-llama/Llama-3.1-8B-Instruct
+            - --port=8000
+            - --enable-prefix-caching
+            - --enable-lora
+            - --max-loras=4
+            - --max-lora-rank=16
+            - --max-cpu-loras=8
+            - --lora-modules
+            - support-lora-v2=/adapters/support-lora-v2
+            - sql-lora-v1=/adapters/sql-lora-v1
+            - legal-lora-v1=/adapters/legal-lora-v1
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+            - name: VLLM_ALLOW_RUNTIME_LORA_UPDATING
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8000
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 60 # model download and load
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 2
+            failureThreshold: 1
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 5
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 30 # let gateways drop the pod before vLLM stops accepting
+          volumeMounts:
+            - name: adapters
+              mountPath: /adapters
+              readOnly: true
+            - name: shm
+              mountPath: /dev/shm
+      volumes:
+        - name: adapters
+          persistentVolumeClaim:
+            claimName: lora-adapters
+            readOnly: true
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 2Gi
+---
+# Headless, so its DNS name resolves to every ready pod; the gateway's
+# `dns:` discovery and the endpoint picker use it to find replicas.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-llama-3-1-8b
+  namespace: inference
+spec:
+  clusterIP: None
+  selector:
+    app: vllm-llama-3-1-8b
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

@@ -1,0 +1,21 @@
+# An Envoy Gateway Gateway. Envoy Gateway must be installed with the AI
+# Gateway extension and InferencePool support enabled (see the Envoy AI
+# Gateway "InferencePool" guide for the Helm values).
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-ai-gateway
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: inference-gateway
+  namespace: inference
+spec:
+  gatewayClassName: envoy-ai-gateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80

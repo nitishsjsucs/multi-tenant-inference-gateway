@@ -1,9 +1,14 @@
 package config
 
 import (
+	"errors"
+	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 const digest = "47c0c7636be2dab927068d6818497303daa92c2ffe25f39c8cd88b9b4326ef5b"
@@ -83,6 +88,44 @@ func TestSampleConfigsLoad(t *testing.T) {
 	for _, path := range []string{"../../config/gateway.yaml", "../../config/bench.yaml"} {
 		if _, err := Load(path); err != nil {
 			t.Errorf("%s: %v", path, err)
+		}
+	}
+}
+
+// The configs embedded in the Kubernetes manifests must stay loadable.
+func TestDeployConfigMapsLoad(t *testing.T) {
+	for _, path := range []string{"../../deploy/kubernetes/gateway.yaml", "../../deploy/inference-extension/epp.yaml"} {
+		f, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dec := yaml.NewDecoder(f)
+		found := 0
+		for {
+			var doc struct {
+				Kind string            `yaml:"kind"`
+				Data map[string]string `yaml:"data"`
+			}
+			err := dec.Decode(&doc)
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			if doc.Kind != "ConfigMap" {
+				continue
+			}
+			for name, body := range doc.Data {
+				found++
+				if _, err := Parse([]byte(body)); err != nil {
+					t.Errorf("%s %s: %v", path, name, err)
+				}
+			}
+		}
+		f.Close()
+		if found == 0 {
+			t.Errorf("%s: no ConfigMap data found", path)
 		}
 	}
 }

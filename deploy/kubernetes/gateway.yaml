@@ -1,0 +1,113 @@
+# The multi-tenant gateway talking to vLLM pods directly. Create the prompt
+# registry ConfigMap from the repository's prompts/ directory first:
+#   kubectl -n inference create configmap mtig-prompts --from-file=prompts/
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mtig-config
+  namespace: inference
+data:
+  gateway.yaml: |
+    listen: ":8080"
+    admin_listen: ":9090"
+    prompts_dir: /etc/mtig/prompts
+    redis:
+      addr: redis.inference.svc.cluster.local:6379
+      timeout: 100ms
+    budgets:
+      failure_mode: open
+    picker:
+      strategy: prefix-aware
+      scrape_interval: 250ms
+      prefix:
+        lru_capacity: 31250 # ~500k tokens of KV cache per replica / 16 tokens per block
+    pools:
+      - name: llama-3-1-8b
+        base_model: meta-llama/Llama-3.1-8B-Instruct
+        dns: vllm-llama-3-1-8b.inference.svc.cluster.local:8000
+        adapters: [support-lora-v2, sql-lora-v1, legal-lora-v1]
+    models:
+      - {name: llama-3.1-8b-instruct, pool: llama-3-1-8b}
+      - {name: sql-assistant, pool: llama-3-1-8b, adapter: sql-lora-v1}
+    tenants:
+      - id: acme-support
+        api_keys: [47c0c7636be2dab927068d6818497303daa92c2ffe25f39c8cd88b9b4326ef5b] # replace: gateway hash-key <key>
+        models: [llama-3.1-8b-instruct]
+        aliases:
+          support-bot: {model: llama-3.1-8b-instruct, adapter: support-lora-v2}
+        tokens_per_minute: 200000
+        tokens_per_day: 20000000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mtig-gateway
+  namespace: inference
+  labels:
+    app: mtig-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mtig-gateway
+  template:
+    metadata:
+      labels:
+        app: mtig-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/nitishsjsucs/multi-tenant-inference-gateway:latest # build with `make docker`
+          args: ["-config", "/etc/mtig/gateway.yaml"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: admin
+              containerPort: 9090
+          readinessProbe:
+            httpGet: {path: /readyz, port: admin}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: admin}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 500m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/mtig/gateway.yaml
+              subPath: gateway.yaml
+            - name: prompts
+              mountPath: /etc/mtig/prompts
+      volumes:
+        - name: config
+          configMap:
+            name: mtig-config
+        - name: prompts
+          configMap:
+            name: mtig-prompts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mtig-gateway
+  namespace: inference
+spec:
+  selector:
+    app: mtig-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: admin
+      port: 9090
+      targetPort: admin

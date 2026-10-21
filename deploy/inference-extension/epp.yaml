@@ -1,0 +1,95 @@
+# The endpoint picker (cmd/epp) for the InferencePool. Unlike the reference
+# picker it does not watch the InferencePool through the Kubernetes API: it
+# finds replicas through the vLLM headless Service, so it needs no RBAC.
+# Keep the Service's selector and the InferencePool's selector identical.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mtig-epp-config
+  namespace: inference
+data:
+  epp.yaml: |
+    picker:
+      strategy: prefix-aware
+      scrape_interval: 250ms
+      prefix:
+        lru_capacity: 31250
+    pools:
+      - name: llama-3-1-8b
+        base_model: meta-llama/Llama-3.1-8B-Instruct
+        dns: vllm-llama-3-1-8b.inference.svc.cluster.local:8000
+        adapters: [support-lora-v2, sql-lora-v1, legal-lora-v1]
+    models:
+      - {name: llama-3.1-8b-instruct, pool: llama-3-1-8b}
+      - {name: sql-assistant, pool: llama-3-1-8b, adapter: sql-lora-v1}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mtig-epp
+  namespace: inference
+  labels:
+    app: mtig-epp
+spec:
+  replicas: 1 # prefix indexes are per process; see the README before scaling out
+  selector:
+    matchLabels:
+      app: mtig-epp
+  template:
+    metadata:
+      labels:
+        app: mtig-epp
+    spec:
+      terminationGracePeriodSeconds: 130
+      containers:
+        - name: epp
+          image: ghcr.io/nitishsjsucs/multi-tenant-inference-gateway:latest
+          command: ["/usr/local/bin/epp"]
+          args: ["-config", "/etc/mtig/epp.yaml", "-pool", "llama-3-1-8b"]
+          ports:
+            - name: grpc
+              containerPort: 9002
+            - name: grpc-health
+              containerPort: 9003
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            grpc: {port: 9003, service: inference-extension}
+            periodSeconds: 5
+          livenessProbe:
+            grpc: {port: 9003, service: inference-extension}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 500m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/mtig/epp.yaml
+              subPath: epp.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: mtig-epp-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mtig-epp
+  namespace: inference
+spec:
+  selector:
+    app: mtig-epp
+  ports:
+    - name: grpc
+      port: 9002
+      targetPort: grpc
+      appProtocol: http2
+    - name: metrics
+      port: 9090
+      targetPort: metrics
