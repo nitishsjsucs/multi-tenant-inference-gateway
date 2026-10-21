@@ -1,0 +1,52 @@
+# Gateway configuration used by scripts/bench.sh. Endpoints and Redis come
+# from the environment; budgets are high enough that they never reject.
+listen: ${GATEWAY_LISTEN:-:8080}
+admin_listen: ${GATEWAY_ADMIN_LISTEN:-:9090}
+prompts_dir: ./prompts
+
+redis:
+  addr: ${REDIS_ADDR:-127.0.0.1:6379}
+  key_prefix: bench
+
+picker:
+  strategy: prefix-aware # overridden per run with -picker
+  scrape_interval: 250ms
+  prefix:
+    lru_capacity: ${PREFIX_LRU_CAPACITY:-8192} # matches mockvllm -cache-blocks
+
+pools:
+  - name: llama-3-1-8b
+    base_model: meta-llama/Llama-3.1-8B-Instruct
+    endpoints: [${MOCK_ENDPOINTS}]
+    adapters: [support-lora-v2, sql-lora-v1, legal-lora-v1]
+
+models:
+  - name: llama-3.1-8b-instruct
+    pool: llama-3-1-8b
+  - name: sql-assistant
+    pool: llama-3-1-8b
+    adapter: sql-lora-v1
+
+tenants:
+  - id: acme-support # sk-bench-acme-support
+    api_keys: [ed8ad7e73068d8242513a8ff925da0d61767db80c086ca5c463e3b387c72541a]
+    aliases:
+      support-bot: {model: llama-3.1-8b-instruct, adapter: support-lora-v2}
+    tokens_per_minute: 50000000
+  - id: globex-analytics # sk-bench-globex-analytics
+    api_keys: [fa71aadbd50c4a5105e2801fccdc9878e8e7478ebd89bf632d0011d4a90b7620]
+    models: [sql-assistant]
+    tokens_per_minute: 50000000
+  - id: initech-docs # sk-bench-initech-docs
+    api_keys: [7261673426d88699b07b568e0c6453d1f693d05ce97fdb48529b4a4971302c1b]
+    models: [llama-3.1-8b-instruct]
+    tokens_per_minute: 50000000
+  - id: umbrella-legal # sk-bench-umbrella-legal
+    api_keys: [a84fc5a6399540a354a5832bffd9f2782813070605ae2949d405f22acf852721]
+    aliases:
+      contract-reviewer: {model: llama-3.1-8b-instruct, adapter: legal-lora-v1}
+    tokens_per_minute: 50000000
+  - id: hooli-chat # sk-bench-hooli-chat
+    api_keys: [14bb7fb3e7ad4998683f4d4e4fa7a71bc3d3f975e9f232bff97cb8844d514949]
+    models: [llama-3.1-8b-instruct]
+    tokens_per_minute: 50000000

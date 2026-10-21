@@ -1,0 +1,63 @@
+# Sample configuration for local development against two mock vLLM replicas
+# (see "Run it locally" in the README). ${VAR} and ${VAR:-default} are
+# expanded from the environment.
+
+listen: ":8080"          # OpenAI-compatible API
+admin_listen: ":9090"    # /metrics, /healthz, /readyz
+prompts_dir: ./prompts   # versioned prompt registry
+upstream_timeout: 10m
+
+redis:
+  addr: ${REDIS_ADDR:-127.0.0.1:6379}
+  key_prefix: mtig
+  timeout: 100ms         # per budget call
+
+budgets:
+  failure_mode: open     # open: admit unaccounted when Redis is down; closed: reject with 503
+  default_max_tokens: 1024
+
+picker:
+  strategy: prefix-aware # random | round-robin | least-queue | prefix-aware
+  scrape_interval: 250ms # how often vLLM /metrics is scraped
+  prefix:
+    block_size: 64       # characters per hashed block (~16 tokens)
+    max_blocks: 256
+    lru_capacity: 31250  # blocks remembered per endpoint (~ KV-cache size in blocks)
+    max_load_delta: 8    # load guard
+    max_kv_utilization: 0.95
+    weights: {prefix: 3, queue: 2, kv_cache: 1, lora: 1}
+
+pools:
+  - name: llama-3-1-8b
+    base_model: meta-llama/Llama-3.1-8B-Instruct
+    endpoints:
+      - http://127.0.0.1:8001
+      - http://127.0.0.1:8002
+    # In Kubernetes, use a headless Service instead of a static list:
+    # dns: vllm-llama-3-1-8b.inference.svc.cluster.local:8000
+    adapters: [support-lora-v2, sql-lora-v1]
+
+# Public model names.
+models:
+  - name: llama-3.1-8b-instruct
+    pool: llama-3-1-8b
+  - name: sql-assistant
+    pool: llama-3-1-8b
+    adapter: sql-lora-v1
+
+tenants:
+  - id: acme-support
+    # sha256("sk-dev-acme-support"); generate with: gateway hash-key <key>
+    api_keys: [47c0c7636be2dab927068d6818497303daa92c2ffe25f39c8cd88b9b4326ef5b]
+    models: [llama-3.1-8b-instruct]
+    aliases:
+      support-bot: {model: llama-3.1-8b-instruct, adapter: support-lora-v2}
+    tokens_per_minute: 200000
+    tokens_per_day: 20000000
+
+  - id: globex-analytics
+    # sha256("sk-dev-globex-analytics")
+    api_keys: [b811f06fb0de7d13d0145a01b28c9e3e2a0875db7d8b0d0f4ac647fc1ef1930f]
+    models: [llama-3.1-8b-instruct, sql-assistant]
+    tokens_per_minute: 50000
+    tokens_per_day: 2000000

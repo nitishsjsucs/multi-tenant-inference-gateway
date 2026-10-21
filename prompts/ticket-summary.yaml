@@ -1,0 +1,15 @@
+id: ticket-summary
+description: Completions-style template that summarises a support ticket thread.
+labels:
+  production: 1
+versions:
+  - version: 1
+    params:
+      max_tokens: 120
+    text: |
+      Summarise the support ticket below in at most three sentences: the problem, what was tried, and the current status.
+
+      Ticket {{ .ticket_id }}:
+      {{ .thread }}
+
+      Summary:
