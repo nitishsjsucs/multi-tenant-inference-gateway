@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"sync/atomic"
-	"time"
 )
 
 // Metrics is a snapshot of a model server's scheduler state, as exported by
@@ -21,8 +20,7 @@ type Metrics struct {
 	// ActiveAdapters holds the LoRA adapters of running and waiting requests.
 	ActiveAdapters map[string]struct{}
 	// MaxLoRAs is vLLM's --max-loras (0 when not reported).
-	MaxLoRAs  int
-	ScrapedAt time.Time
+	MaxLoRAs int
 }
 
 // Endpoint is one model-server replica.

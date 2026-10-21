@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 // Excerpt in the format vLLM's v1 engine exports.
@@ -29,7 +28,7 @@ vllm:prefix_cache_queries_total{engine="0",model_name="meta-llama/Llama-3.1-8B-I
 `
 
 func TestParseVLLMv1(t *testing.T) {
-	m, err := ParseVLLM(strings.NewReader(vllmV1), time.Now())
+	m, err := ParseVLLM(strings.NewReader(vllmV1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +45,7 @@ func TestParseVLLMv1(t *testing.T) {
 
 func TestParseVLLMv0CacheMetric(t *testing.T) {
 	const v0 = "# TYPE vllm:gpu_cache_usage_perc gauge\nvllm:gpu_cache_usage_perc{model_name=\"m\"} 0.9\n"
-	m, err := ParseVLLM(strings.NewReader(v0), time.Now())
+	m, err := ParseVLLM(strings.NewReader(v0))
 	if err != nil {
 		t.Fatal(err)
 	}

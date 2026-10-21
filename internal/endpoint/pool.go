@@ -194,5 +194,5 @@ func scrape(ctx context.Context, client *http.Client, ep *Endpoint) (*Metrics, e
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
-	return ParseVLLM(resp.Body, time.Now())
+	return ParseVLLM(resp.Body)
 }

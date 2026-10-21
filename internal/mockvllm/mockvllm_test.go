@@ -146,7 +146,7 @@ func TestLoRAInfoMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	m, err := endpoint.ParseVLLM(resp.Body, time.Now())
+	m, err := endpoint.ParseVLLM(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}

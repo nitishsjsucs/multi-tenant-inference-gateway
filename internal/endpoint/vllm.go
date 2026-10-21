@@ -5,7 +5,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -29,7 +28,7 @@ func ParseMetricFamilies(r io.Reader) (map[string]*dto.MetricFamily, error) {
 
 // ParseVLLM extracts the scheduler state the pickers need from a vLLM
 // /metrics payload.
-func ParseVLLM(r io.Reader, now time.Time) (*Metrics, error) {
+func ParseVLLM(r io.Reader) (*Metrics, error) {
 	families, err := ParseMetricFamilies(r)
 	if err != nil {
 		return nil, fmt.Errorf("parse metrics: %w", err)
@@ -38,7 +37,6 @@ func ParseVLLM(r io.Reader, now time.Time) (*Metrics, error) {
 		Waiting:        int(Sum(families, metricWaiting)),
 		Running:        int(Sum(families, metricRunning)),
 		ActiveAdapters: map[string]struct{}{},
-		ScrapedAt:      now,
 	}
 	if _, ok := families[metricKVUsage]; ok {
 		m.KVCacheUsage = maxValue(families[metricKVUsage])
