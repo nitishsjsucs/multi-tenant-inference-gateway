@@ -1,0 +1,80 @@
+{
+  "description": "Endpoint-picker comparison against simulated vLLM replicas (cmd/mockvllm). Latencies come from the mock's timing model, not from vLLM or a GPU.",
+  "simulated": true,
+  "commit": "eb6d46b",
+  "command": "make bench (scripts/bench.sh); make bench-lora for the LoRA-constrained variant",
+  "environment": {
+    "host": "sandbox VM, 4 vCPUs (Intel Xeon @ 2.80 GHz), 15 GB RAM, no GPU",
+    "shared_host": "gateway, Redis, mock replicas and load generator all ran on the same host"
+  },
+  "parameters": {
+    "replicas": 4,
+    "users": 200,
+    "warmup_s": 5,
+    "measured_s": 25,
+    "turns_per_conversation": [3, 6],
+    "think_time_s": [1, 3],
+    "tenants": 5,
+    "tenant_weights": {"acme-support": 3, "globex-analytics": 2, "initech-docs": 2, "umbrella-legal": 1, "hooli-chat": 2},
+    "streaming": true,
+    "fresh_replicas_per_picker": true,
+    "gateway": {
+      "config": "config/bench.yaml",
+      "scrape_interval_ms": 250,
+      "prefix_block_chars": 64,
+      "prefix_weights": {"prefix": 3, "queue": 2, "kv_cache": 1, "lora": 1},
+      "max_load_delta": 8,
+      "lru_capacity_blocks": 8192
+    },
+    "mock_replica": {
+      "chars_per_token": 4,
+      "kv_block_tokens": 16,
+      "cache_blocks": 8192,
+      "max_num_seqs": 64,
+      "prefill_tokens_per_s": 10000,
+      "decode_tokens_per_s_per_seq": 50,
+      "base_ttft_ms": 15,
+      "max_loras": 4,
+      "lora_load_penalty_ms": 50,
+      "output_length": "deterministic, 0.5-1x max_tokens"
+    }
+  },
+  "metrics": {
+    "cache_hit_rate_pct": "vllm:prefix_cache_hits_total / vllm:prefix_cache_queries_total over the measured window, in tokens, summed over replicas",
+    "ttft_ms": "time to first streamed token, measured by the load generator through the gateway",
+    "busiest_over_mean": "requests finished by the busiest replica divided by the per-replica mean",
+    "lora_loads": "mockvllm_lora_adapter_loads_total during the measured window"
+  },
+  "seed1": {
+    "seed": 1,
+    "rows": [
+      {"picker": "random", "cache_hit_rate_pct": 83.4, "ttft_p50_ms": 37, "ttft_p95_ms": 85, "ttft_p99_ms": 119, "req_per_s": 52.4, "output_tok_per_s": 4808, "lora_loads": 0, "busiest_over_mean": 1.02, "errors": 0, "requests": 1309},
+      {"picker": "round-robin", "cache_hit_rate_pct": 83.8, "ttft_p50_ms": 31, "ttft_p95_ms": 70, "ttft_p99_ms": 87, "req_per_s": 52.7, "output_tok_per_s": 4837, "lora_loads": 0, "busiest_over_mean": 1.01, "errors": 0, "requests": 1318},
+      {"picker": "least-queue", "cache_hit_rate_pct": 83.8, "ttft_p50_ms": 37, "ttft_p95_ms": 86, "ttft_p99_ms": 118, "req_per_s": 52.3, "output_tok_per_s": 4797, "lora_loads": 0, "busiest_over_mean": 1.02, "errors": 0, "requests": 1307},
+      {"picker": "prefix-aware", "cache_hit_rate_pct": 92.3, "ttft_p50_ms": 24, "ttft_p95_ms": 57, "ttft_p99_ms": 102, "req_per_s": 52.4, "output_tok_per_s": 4815, "lora_loads": 2, "busiest_over_mean": 1.08, "errors": 0, "requests": 1311}
+    ]
+  },
+  "seeds_1_to_3_ranges": {
+    "seeds": [1, 2, 3],
+    "note": "[min, max] across the three seeds, same configuration",
+    "rows": [
+      {"picker": "random", "cache_hit_rate_pct": [83.2, 83.7], "ttft_p50_ms": [35, 37], "ttft_p95_ms": [75, 85], "ttft_p99_ms": [99, 119], "busiest_over_mean": [1.02, 1.09]},
+      {"picker": "round-robin", "cache_hit_rate_pct": [83.6, 83.9], "ttft_p50_ms": [30, 31], "ttft_p95_ms": [70, 71], "ttft_p99_ms": [87, 91], "busiest_over_mean": [1.00, 1.01]},
+      {"picker": "least-queue", "cache_hit_rate_pct": [83.6, 83.8], "ttft_p50_ms": [36, 37], "ttft_p95_ms": [82, 86], "ttft_p99_ms": [112, 118], "busiest_over_mean": [1.02, 1.02]},
+      {"picker": "prefix-aware", "cache_hit_rate_pct": [92.1, 92.3], "ttft_p50_ms": [23, 24], "ttft_p95_ms": [53, 57], "ttft_p99_ms": [88, 102], "busiest_over_mean": [1.04, 1.15]}
+    ]
+  },
+  "lora_constrained": {
+    "seed": 1,
+    "command": "make bench-lora",
+    "max_loras": 2,
+    "adapters": 3,
+    "caveat": "Illustrates adapter affinity; the tail is dominated by the mock's FIFO adapter-swap model, which differs from vLLM's scheduler. Run-to-run variance is large.",
+    "rows": [
+      {"picker": "random", "cache_hit_rate_pct": 84.1, "ttft_p50_ms": 73, "ttft_p95_ms": 12048, "ttft_p99_ms": 16932, "req_per_s": 26.8, "output_tok_per_s": 2487, "lora_loads": 114, "busiest_over_mean": 1.11, "errors": 0, "requests": 671},
+      {"picker": "round-robin", "cache_hit_rate_pct": 84.2, "ttft_p50_ms": 74, "ttft_p95_ms": 13994, "ttft_p99_ms": 16748, "req_per_s": 27.8, "output_tok_per_s": 2582, "lora_loads": 110, "busiest_over_mean": 1.04, "errors": 0, "requests": 695},
+      {"picker": "least-queue", "cache_hit_rate_pct": 84.5, "ttft_p50_ms": 156, "ttft_p95_ms": 12230, "ttft_p99_ms": 14846, "req_per_s": 29.0, "output_tok_per_s": 2684, "lora_loads": 101, "busiest_over_mean": 1.37, "errors": 0, "requests": 724},
+      {"picker": "prefix-aware", "cache_hit_rate_pct": 90.9, "ttft_p50_ms": 24, "ttft_p95_ms": 77, "ttft_p99_ms": 259, "req_per_s": 52.3, "output_tok_per_s": 4804, "lora_loads": 3, "busiest_over_mean": 1.09, "errors": 0, "requests": 1308}
+    ]
+  }
+}
