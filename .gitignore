@@ -1,0 +1,21 @@
+# Build output
+/bin/
+/dist/
+
+# Benchmark output (scripts/bench.sh)
+/bench-results/
+
+# Go test artifacts
+*.test
+*.out
+coverage.*
+
+# Python example
+__pycache__/
+.venv/
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
