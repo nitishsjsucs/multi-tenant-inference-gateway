@@ -66,7 +66,7 @@ func TestValidate(t *testing.T) {
 		"unknown pool":         {"pool: llama}", "pool: nope}", `unknown pool "nope"`},
 		"adapter not in pool":  {"adapter: support-lora-v2}", "adapter: other}", `adapter "other" is not listed`},
 		"bad digest":           {digest, "sk-plaintext", "hex SHA-256"},
-		"unknown tenant model": {`models: ["*"]`, `models: [gpt-9]`, `unknown model "gpt-9"`},
+		"unknown tenant model": {`models: ["*"]`, `models: [no-such-model]`, `unknown model "no-such-model"`},
 		"bad failure mode":     {"redis:", "budgets: {failure_mode: maybe}\nredis:", "failure_mode"},
 		"bad picker":           {"redis:", "picker: {strategy: magic}\nredis:", "picker.strategy"},
 		"unknown field":        {"redis:", "redsi: {}\nredis:", "field redsi not found"},

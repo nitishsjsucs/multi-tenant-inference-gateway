@@ -38,7 +38,7 @@ func TestResolve(t *testing.T) {
 		{acme, "analyst", "sql-lora-v1", "sql-lora-v1", nil},
 		{acme, "sql-assistant", "", "", ErrModelNotFound}, // not in acme's allow-list
 		{acme, "support-lora-v2", "", "", ErrModelNotFound},
-		{acme, "gpt-4o", "", "", ErrModelNotFound},
+		{acme, "no-such-model", "", "", ErrModelNotFound},
 		// Without a tenant (ext_proc), public names and raw upstream names resolve.
 		{nil, "sql-assistant", "sql-lora-v1", "sql-lora-v1", nil},
 		{nil, "support-lora-v2", "support-lora-v2", "support-lora-v2", nil},

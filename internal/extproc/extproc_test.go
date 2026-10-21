@@ -242,7 +242,7 @@ func TestImmediateErrors(t *testing.T) {
 		body string
 		code typev3.StatusCode
 	}{
-		"unknown model": {[]string{"http://10.0.0.1:8000"}, `{"model":"gpt-4o","messages":[]}`, typev3.StatusCode_NotFound},
+		"unknown model": {[]string{"http://10.0.0.1:8000"}, `{"model":"no-such-model","messages":[]}`, typev3.StatusCode_NotFound},
 		"invalid json":  {[]string{"http://10.0.0.1:8000"}, `{"model":`, typev3.StatusCode_BadRequest},
 		"no endpoints":  {nil, `{"model":"support-bot","prompt":"x"}`, typev3.StatusCode_ServiceUnavailable},
 	}

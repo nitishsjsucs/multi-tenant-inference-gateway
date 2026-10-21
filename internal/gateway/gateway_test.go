@@ -216,7 +216,7 @@ func TestBadRequests(t *testing.T) {
 	}{
 		"not json":          {`{`, 400, ""},
 		"no model":          {`{"messages":[{"role":"user","content":"x"}]}`, 400, ""},
-		"unknown model":     {`{"model":"gpt-4o","messages":[{"role":"user","content":"x"}]}`, 404, "model_not_found"},
+		"unknown model":     {`{"model":"no-such-model","messages":[{"role":"user","content":"x"}]}`, 404, "model_not_found"},
 		"not allowed":       {`{"model":"meta-llama/Llama-3.1-8B-Instruct","messages":[{"role":"user","content":"x"}]}`, 404, "model_not_found"},
 		"no messages":       {`{"model":"llama-3.1-8b-instruct"}`, 400, ""},
 		"bad max_tokens":    {`{"model":"llama-3.1-8b-instruct","max_tokens":-1,"messages":[{"role":"user","content":"x"}]}`, 400, ""},
